@@ -4,7 +4,6 @@ import { ReactNode } from "react";
 
 interface ExampleLayoutProps {
   chatContent: ReactNode;
-  appContent: ReactNode;
 }
 
 export function ExampleLayout({

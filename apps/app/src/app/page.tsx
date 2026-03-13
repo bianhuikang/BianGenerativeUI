@@ -2,7 +2,6 @@
 
 import { useEffect } from "react";
 import { ExampleLayout } from "@/components/example-layout";
-import { ExampleCanvas } from "@/components/example-canvas";
 import { useGenerativeUIExamples, useExampleSuggestions } from "@/hooks";
 
 import { CopilotChat } from "@copilotkit/react-core/v2";
@@ -74,10 +73,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          <ExampleLayout
-            chatContent={<CopilotChat />}
-            appContent={<ExampleCanvas />}
-          />
+          <ExampleLayout chatContent={<CopilotChat />} />
         </div>
       </div>
     </>
