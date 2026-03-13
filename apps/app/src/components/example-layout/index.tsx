@@ -10,9 +10,9 @@ export function ExampleLayout({
   chatContent,
 }: ExampleLayoutProps) {
   return (
-    <div className="h-full flex flex-row">
+    <div className="flex-1 min-h-0 flex flex-row">
       {/* Chat Content */}
-      <div className="max-h-full overflow-y-auto flex-1 max-lg:px-4">
+      <div className="h-full flex-1 max-lg:px-4">
         {chatContent}
       </div>
     </div>

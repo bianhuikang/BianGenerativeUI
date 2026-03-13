@@ -302,6 +302,8 @@ body, html {
   box-shadow: var(--shadow-glass);
   flex: 1;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 @media (max-width: 768px) {
