@@ -10,6 +10,7 @@ from langchain_openai import ChatOpenAI
 from src.query import query_data
 from src.todos import AgentState, todo_tools
 from src.form import generate_form
+from src.templates import template_tools
 from skills import load_all_skills
 
 # Load all visualization skills
@@ -17,7 +18,7 @@ _skills_text = load_all_skills()
 
 agent = create_agent(
     model=ChatOpenAI(model="gpt-5.4-2026-03-05"),
-    tools=[query_data, *todo_tools, generate_form],
+    tools=[query_data, *todo_tools, generate_form, *template_tools],
     middleware=[CopilotKitMiddleware()],
     state_schema=AgentState,
     system_prompt=f"""
@@ -47,6 +48,20 @@ agent = create_agent(
         Follow the skills below for how to produce high-quality visuals:
 
         {_skills_text}
+
+        ## UI Templates
+
+        Users can save generated UIs as reusable templates and apply them later:
+
+        - When a user asks to save a widget as a template, call `save_template` with the
+          widget's HTML, a short name, description, and a description of the data shape.
+        - When a user asks to apply a template, first call `list_templates` to find the
+          right one, then call `apply_template` to get its HTML. Adapt the HTML with the
+          user's new data and render via `widgetRenderer`.
+        - When a user asks to see their templates, call `list_templates`.
+        - When a user asks to delete a template, call `delete_template`.
+        - A "save-as-template" message from the frontend means the user clicked the save
+          button on a widget. Extract the template details and call `save_template`.
     """,
 )
 

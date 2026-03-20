@@ -1,26 +1,76 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { ExampleLayout } from "@/components/example-layout";
 import { useGenerativeUIExamples, useExampleSuggestions } from "@/hooks";
 import { ExplainerCardsPortal } from "@/components/explainer-cards";
+import { TemplateLibrary } from "@/components/template-library";
 
 import { CopilotChat } from "@copilotkit/react-core/v2";
+import { useAgent } from "@copilotkit/react-core/v2";
 
 export default function HomePage() {
   useGenerativeUIExamples();
   useExampleSuggestions();
 
-  // Widget bridge: handle openLink from widget iframes
+  const { agent } = useAgent();
+  const [templateDrawerOpen, setTemplateDrawerOpen] = useState(false);
+
+  // Save a template directly to agent state — no chat round-trip
+  const saveTemplate = useCallback((data: {
+    name: string;
+    title: string;
+    description: string;
+    html: string;
+  }) => {
+    const templates = agent.state?.templates || [];
+    const newTemplate = {
+      id: crypto.randomUUID(),
+      name: data.name || data.title || "Untitled Template",
+      description: data.description || data.title || "",
+      html: data.html,
+      data_description: "",
+      created_at: new Date().toISOString(),
+      version: 1,
+    };
+    agent.setState({ templates: [...templates, newTemplate] });
+  }, [agent]);
+
+  // Send a prompt to the CopilotChat by finding its textarea and submitting
+  const sendPrompt = useCallback((text: string) => {
+    const input = document.querySelector<HTMLTextAreaElement>(
+      '[class*="copilot"] textarea, [data-copilotkit] textarea'
+    );
+    if (input) {
+      const setter = Object.getOwnPropertyDescriptor(
+        window.HTMLTextAreaElement.prototype,
+        "value"
+      )?.set;
+      setter?.call(input, text);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      setTimeout(() => {
+        const form = input.closest("form");
+        if (form) {
+          form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+        }
+      }, 50);
+    }
+  }, []);
+
+  // Widget bridge: handle messages from widget iframes
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       if (e.data?.type === "open-link" && typeof e.data.url === "string") {
         window.open(e.data.url, "_blank", "noopener,noreferrer");
       }
+      // Handle save-as-template from WidgetRenderer — save directly to state
+      if (e.data?.type === "save-as-template") {
+        saveTemplate(e.data);
+      }
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, []);
+  }, [saveTemplate]);
 
   return (
     <>
@@ -58,19 +108,38 @@ export default function HomePage() {
                   <span className="font-normal" style={{ color: "var(--text-secondary)" }}> — powered by CopilotKit</span>
                 </p>
               </div>
-              <a
-                href="https://github.com/CopilotKit/OpenGenerativeUI"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center px-5 py-2 rounded-full text-sm font-semibold text-white no-underline whitespace-nowrap transition-all duration-150 hover:-translate-y-px"
-                style={{
-                  background: "linear-gradient(135deg, var(--color-lilac-dark), var(--color-mint-dark))",
-                  boxShadow: "0 1px 4px rgba(149,153,204,0.3)",
-                  fontFamily: "var(--font-family)",
-                }}
-              >
-                Get started
-              </a>
+              <div className="flex items-center gap-2">
+                {/* Template Library toggle */}
+                <button
+                  onClick={() => setTemplateDrawerOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium no-underline whitespace-nowrap transition-all duration-150 hover:-translate-y-px"
+                  style={{
+                    color: "var(--text-secondary)",
+                    border: "1px solid var(--color-border-glass, rgba(0,0,0,0.1))",
+                    background: "var(--surface-primary, rgba(255,255,255,0.6))",
+                    fontFamily: "var(--font-family)",
+                  }}
+                  title="Open Template Library"
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
+                  </svg>
+                  Templates
+                </button>
+                <a
+                  href="https://github.com/CopilotKit/OpenGenerativeUI"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center px-5 py-2 rounded-full text-sm font-semibold text-white no-underline whitespace-nowrap transition-all duration-150 hover:-translate-y-px"
+                  style={{
+                    background: "linear-gradient(135deg, var(--color-lilac-dark), var(--color-mint-dark))",
+                    boxShadow: "0 1px 4px rgba(149,153,204,0.3)",
+                    fontFamily: "var(--font-family)",
+                  }}
+                >
+                  Get started
+                </a>
+              </div>
             </div>
           </div>
 
@@ -84,6 +153,13 @@ export default function HomePage() {
           <ExplainerCardsPortal />
         </div>
       </div>
+
+      {/* Template Library Drawer */}
+      <TemplateLibrary
+        open={templateDrawerOpen}
+        onClose={() => setTemplateDrawerOpen(false)}
+        onSendPrompt={sendPrompt}
+      />
     </>
   );
 }

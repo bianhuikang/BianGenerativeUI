@@ -5,6 +5,8 @@ from langgraph.types import Command
 from typing import TypedDict, Literal
 import uuid
 
+from src.templates import UITemplate
+
 class Todo(TypedDict):
     id: str
     title: str
@@ -14,6 +16,7 @@ class Todo(TypedDict):
 
 class AgentState(BaseAgentState):
     todos: list[Todo]
+    templates: list[UITemplate]
 
 @tool
 def manage_todos(todos: list[Todo], runtime: ToolRuntime) -> Command:
