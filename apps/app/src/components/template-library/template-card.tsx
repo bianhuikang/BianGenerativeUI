@@ -62,11 +62,13 @@ function PieChartPreview({ data }: { data: { label: string; value: number }[] })
   if (total === 0) return null;
 
   const cx = 60, cy = 60, r = 50;
-  let cumulative = 0;
+  const cumulativeAngles = data.reduce<number[]>((acc, d) => {
+    acc.push((acc[acc.length - 1] ?? 0) + d.value);
+    return acc;
+  }, []);
   const slices = data.map((d, i) => {
-    const startAngle = (cumulative / total) * 2 * Math.PI - Math.PI / 2;
-    cumulative += d.value;
-    const endAngle = (cumulative / total) * 2 * Math.PI - Math.PI / 2;
+    const startAngle = ((cumulativeAngles[i] - d.value) / total) * 2 * Math.PI - Math.PI / 2;
+    const endAngle = (cumulativeAngles[i] / total) * 2 * Math.PI - Math.PI / 2;
     const largeArc = d.value / total > 0.5 ? 1 : 0;
     const x1 = cx + r * Math.cos(startAngle);
     const y1 = cy + r * Math.sin(startAngle);
@@ -150,7 +152,7 @@ body {
         ) : html ? (
           <iframe
             ref={iframeRef}
-            sandbox="allow-same-origin allow-scripts"
+            sandbox="allow-scripts"
             onLoad={() => setPreviewReady(true)}
             className="border-0 w-[300%] h-[300%] origin-top-left"
             style={{

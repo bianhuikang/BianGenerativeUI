@@ -9,7 +9,10 @@ function submitChatPrompt(text: string) {
   const textarea = document.querySelector<HTMLTextAreaElement>(
     '[data-testid="copilot-chat-textarea"]'
   );
-  if (!textarea) return;
+  if (!textarea) {
+    console.warn("submitChatPrompt: CopilotChat textarea not found — template apply message was not sent.");
+    return;
+  }
 
   const setter = Object.getOwnPropertyDescriptor(
     window.HTMLTextAreaElement.prototype, "value"
@@ -35,6 +38,7 @@ interface Template {
   html: string;
   data_description: string;
   component_type?: string;
+  component_data?: Record<string, unknown>;
   version: number;
 }
 
@@ -177,8 +181,8 @@ export function TemplateLibrary({ open, onClose }: TemplateLibraryProps) {
                   name={t.name}
                   description={t.description}
                   html={t.html}
-                  componentType={(t as unknown as Record<string, unknown>).component_type as string | undefined}
-                  componentData={(t as unknown as Record<string, unknown>).component_data as Record<string, unknown> | undefined}
+                  componentType={t.component_type}
+                  componentData={t.component_data}
                   dataDescription={t.data_description}
                   version={t.version}
                   onApply={handleApplyClick}

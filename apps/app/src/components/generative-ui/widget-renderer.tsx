@@ -349,20 +349,32 @@ document.addEventListener('click', function(e) {
 
 // Listen for streaming content updates from parent
 window.addEventListener('message', function(e) {
+  if (e.source !== window.parent) return;
   if (e.data && e.data.type === 'update-content') {
     var content = document.getElementById('content');
     if (content) {
-      content.innerHTML = e.data.html;
-      // Re-run any inline scripts (new ones added by streaming)
-      var scripts = content.querySelectorAll('script');
-      scripts.forEach(function(oldScript) {
+      // Strip script tags from HTML before inserting — scripts are handled separately below
+      var tmp = document.createElement('div');
+      tmp.innerHTML = e.data.html;
+      var incomingScripts = [];
+      tmp.querySelectorAll('script').forEach(function(s) {
+        incomingScripts.push({ src: s.src, text: s.textContent });
+        s.remove();
+      });
+      content.innerHTML = tmp.innerHTML;
+
+      // Execute only new scripts (not previously executed)
+      incomingScripts.forEach(function(scriptInfo) {
+        var key = scriptInfo.src || scriptInfo.text;
+        if (content.getAttribute('data-exec-' + btoa(key).slice(0, 16))) return;
+        content.setAttribute('data-exec-' + btoa(key).slice(0, 16), '1');
         var newScript = document.createElement('script');
-        if (oldScript.src) {
-          newScript.src = oldScript.src;
+        if (scriptInfo.src) {
+          newScript.src = scriptInfo.src;
         } else {
-          newScript.textContent = oldScript.textContent;
+          newScript.textContent = scriptInfo.text;
         }
-        oldScript.parentNode.replaceChild(newScript, oldScript);
+        content.appendChild(newScript);
       });
       reportHeight();
     }
@@ -384,11 +396,6 @@ setTimeout(function() { clearInterval(_resizeInterval); }, 15000);
 `;
 
 // ─── Document Assembly ───────────────────────────────────────────────
-/** Full document with content — used for final/complete renders */
-function assembleDocument(html: string): string {
-  return assembleShell(html);
-}
-
 /** Empty shell or shell with initial content — iframe loads once, content streamed via postMessage */
 function assembleShell(initialHtml: string = ""): string {
   return `<!DOCTYPE html>
@@ -440,7 +447,6 @@ function useLoadingPhrase(active: boolean) {
   const [index, setIndex] = useState(0);
   useEffect(() => {
     if (!active) return;
-    setIndex(0);
     const interval = setInterval(() => {
       setIndex((i) => (i + 1) % LOADING_PHRASES.length);
     }, 1800);
@@ -459,11 +465,12 @@ export function WidgetRenderer({ title, description, html }: WidgetRendererProps
   const shellReadyRef = useRef(false);
   // Track the last html sent to the iframe to avoid redundant updates
   const committedHtmlRef = useRef("");
-  // Whether streaming has started (html is arriving but may not be complete)
-  const [streaming, setStreaming] = useState(false);
   // Tracks whether html content has settled (stopped changing)
   const [htmlSettled, setHtmlSettled] = useState(false);
+  const [prevHtml, setPrevHtml] = useState(html);
   const settledTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [fadingOut, setFadingOut] = useState(false);
 
   const handleMessage = useCallback((e: MessageEvent) => {
     // Only handle messages from our own iframe
@@ -482,6 +489,13 @@ export function WidgetRenderer({ title, description, html }: WidgetRendererProps
     return () => window.removeEventListener("message", handleMessage);
   }, [handleMessage]);
 
+  // Reset settled/fade state when html changes (adjust state during render)
+  if (html !== prevHtml) {
+    setPrevHtml(html);
+    setHtmlSettled(false);
+    setFadingOut(false);
+  }
+
   // Initialize the iframe shell once when html first appears.
   // After that, stream content updates via postMessage — no iframe reload.
   useEffect(() => {
@@ -492,7 +506,6 @@ export function WidgetRenderer({ title, description, html }: WidgetRendererProps
       shellReadyRef.current = true;
       committedHtmlRef.current = html;
       iframeRef.current.srcdoc = assembleShell(html);
-      setStreaming(true);
       return;
     }
 
@@ -512,15 +525,19 @@ export function WidgetRenderer({ title, description, html }: WidgetRendererProps
   // Detect when html has stopped changing (streaming complete).
   // Resets a debounce timer on every html update — settles after 800ms of no changes.
   useEffect(() => {
-    if (!html) {
-      setHtmlSettled(false);
-      return;
-    }
-    setHtmlSettled(false);
+    if (!html) return;
     if (settledTimerRef.current) clearTimeout(settledTimerRef.current);
-    settledTimerRef.current = setTimeout(() => setHtmlSettled(true), 800);
+    if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+    settledTimerRef.current = setTimeout(() => {
+      setHtmlSettled(true);
+      setFadingOut(true);
+      fadeTimerRef.current = setTimeout(() => {
+        setFadingOut(false);
+      }, 600);
+    }, 800);
     return () => {
       if (settledTimerRef.current) clearTimeout(settledTimerRef.current);
+      if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
     };
   }, [html]);
 
@@ -534,25 +551,12 @@ export function WidgetRenderer({ title, description, html }: WidgetRendererProps
     return () => clearTimeout(timeout);
   }, [html, loaded, height]);
 
-  // Content is "complete" when iframe has loaded and reported a valid height
-  const ready = loaded && height > 0;
-  // Show the iframe (even partially) as soon as we have content streaming
-  const showIframe = !!html && (streaming || ready);
+  // Show the iframe as soon as we have html (shell initializes on first html)
+  const showIframe = !!html;
   // Streaming is active until html has stopped changing
   const isStreaming = !!html && !htmlSettled;
   const loadingPhrase = useLoadingPhrase(isStreaming);
-
-  // Keep the streaming indicator mounted long enough to fade out
-  const [showStreamingIndicator, setShowStreamingIndicator] = useState(false);
-  useEffect(() => {
-    if (isStreaming) {
-      setShowStreamingIndicator(true);
-    } else if (showStreamingIndicator) {
-      // Keep mounted for fade-out, then unmount
-      const timeout = setTimeout(() => setShowStreamingIndicator(false), 600);
-      return () => clearTimeout(timeout);
-    }
-  }, [isStreaming, showStreamingIndicator]);
+  const showStreamingIndicator = isStreaming || fadingOut;
 
   return (
     <div className="w-full my-3">
@@ -599,7 +603,7 @@ export function WidgetRenderer({ title, description, html }: WidgetRendererProps
             content streamed via postMessage for progressive rendering. */}
         <iframe
           ref={iframeRef}
-          sandbox="allow-scripts allow-same-origin"
+          sandbox="allow-scripts"
           className="w-full border-0"
           onLoad={() => setLoaded(true)}
           style={{
