@@ -127,81 +127,76 @@ const invoiceHtml = `<style>
   </div>
 </div>`;
 
-const calculatorHtml = `<style>
-.calc {
+const dashboardHtml = `<style>
+.dash {
   font-family: var(--font-sans);
-  max-width: 320px;
+  max-width: 480px;
   border-radius: var(--border-radius-xl);
   background: var(--color-background-secondary);
   border: 0.5px solid var(--color-border-tertiary);
-  overflow: hidden;
+  padding: 24px;
 }
-.calc-display {
-  padding: 20px 24px 12px;
-  text-align: right;
-}
-.calc-expression { font-size: 13px; color: var(--color-text-tertiary); min-height: 18px; }
-.calc-result { font-size: 36px; font-weight: 700; color: var(--color-text-primary); line-height: 1.2; }
-.calc-grid {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
-  background: var(--color-border-tertiary);
-  border-top: 0.5px solid var(--color-border-tertiary);
-}
-.calc-btn {
-  padding: 16px; font-size: 16px; font-weight: 500;
-  border: none; border-radius: 0; cursor: pointer;
+.dash-title { font-size: 18px; font-weight: 600; color: var(--color-text-primary); margin-bottom: 4px; }
+.dash-subtitle { font-size: 12px; color: var(--color-text-tertiary); margin-bottom: 20px; }
+.dash-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+.dash-kpi {
+  padding: 12px; border-radius: var(--border-radius-md);
   background: var(--color-background-primary);
-  color: var(--color-text-primary);
-  transition: background 0.1s;
+  border: 0.5px solid var(--color-border-tertiary);
 }
-.calc-btn:hover { background: var(--color-background-tertiary); }
-.calc-btn.op { color: var(--color-text-info); font-weight: 600; }
-.calc-btn.eq {
-  background: var(--color-background-info); color: var(--color-text-info); font-weight: 600;
+.dash-kpi-label { font-size: 11px; color: var(--color-text-tertiary); }
+.dash-kpi-value { font-size: 22px; font-weight: 700; color: var(--color-text-primary); margin-top: 2px; }
+.dash-kpi-change { font-size: 11px; margin-top: 2px; }
+.dash-kpi-change.up { color: var(--color-text-success); }
+.dash-kpi-change.down { color: var(--color-text-danger); }
+.dash-chart { margin-bottom: 16px; }
+.dash-chart-title { font-size: 13px; font-weight: 600; color: var(--color-text-primary); margin-bottom: 8px; }
+.dash-bars { display: flex; align-items: flex-end; gap: 6px; height: 100px; }
+.dash-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.dash-bar {
+  width: 100%; border-radius: 4px 4px 0 0;
+  background: linear-gradient(180deg, rgba(99,102,241,0.7), rgba(16,185,129,0.5));
+  transition: height 0.3s ease;
 }
-.calc-btn.eq:hover { opacity: 0.85; }
-.calc-btn.wide { grid-column: span 2; }
+.dash-bar-label { font-size: 10px; color: var(--color-text-tertiary); }
+.dash-legend { display: flex; gap: 16px; padding-top: 12px; border-top: 0.5px solid var(--color-border-tertiary); }
+.dash-legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--color-text-secondary); }
+.dash-legend-dot { width: 8px; height: 8px; border-radius: 50%; }
 </style>
-<div class="calc">
-  <div class="calc-display">
-    <div class="calc-expression" id="expr"></div>
-    <div class="calc-result" id="result">0</div>
+<div class="dash">
+  <div class="dash-title">Q1 2026 Performance</div>
+  <div class="dash-subtitle">Revenue, users, and conversion metrics — Jan to Mar 2026</div>
+  <div class="dash-kpis">
+    <div class="dash-kpi">
+      <div class="dash-kpi-label">Revenue</div>
+      <div class="dash-kpi-value">$284k</div>
+      <div class="dash-kpi-change up">+12.3% vs Q4</div>
+    </div>
+    <div class="dash-kpi">
+      <div class="dash-kpi-label">Active Users</div>
+      <div class="dash-kpi-value">18.2k</div>
+      <div class="dash-kpi-change up">+8.1% vs Q4</div>
+    </div>
+    <div class="dash-kpi">
+      <div class="dash-kpi-label">Conversion</div>
+      <div class="dash-kpi-value">3.4%</div>
+      <div class="dash-kpi-change down">-0.2% vs Q4</div>
+    </div>
   </div>
-  <div class="calc-grid">
-    <button class="calc-btn" onclick="clearCalc()">C</button>
-    <button class="calc-btn op" onclick="inputOp('(')">(</button>
-    <button class="calc-btn op" onclick="inputOp(')')">)</button>
-    <button class="calc-btn op" onclick="inputOp('/')">÷</button>
-    <button class="calc-btn" onclick="inputNum('7')">7</button>
-    <button class="calc-btn" onclick="inputNum('8')">8</button>
-    <button class="calc-btn" onclick="inputNum('9')">9</button>
-    <button class="calc-btn op" onclick="inputOp('*')">×</button>
-    <button class="calc-btn" onclick="inputNum('4')">4</button>
-    <button class="calc-btn" onclick="inputNum('5')">5</button>
-    <button class="calc-btn" onclick="inputNum('6')">6</button>
-    <button class="calc-btn op" onclick="inputOp('-')">−</button>
-    <button class="calc-btn" onclick="inputNum('1')">1</button>
-    <button class="calc-btn" onclick="inputNum('2')">2</button>
-    <button class="calc-btn" onclick="inputNum('3')">3</button>
-    <button class="calc-btn op" onclick="inputOp('+')">+</button>
-    <button class="calc-btn wide" onclick="inputNum('0')">0</button>
-    <button class="calc-btn" onclick="inputNum('.')">.</button>
-    <button class="calc-btn eq" onclick="calc()">=</button>
+  <div class="dash-chart">
+    <div class="dash-chart-title">Monthly Revenue</div>
+    <div class="dash-bars">
+      <div class="dash-bar-col"><div class="dash-bar" style="height:65%"></div><div class="dash-bar-label">Jan</div></div>
+      <div class="dash-bar-col"><div class="dash-bar" style="height:78%"></div><div class="dash-bar-label">Feb</div></div>
+      <div class="dash-bar-col"><div class="dash-bar" style="height:100%"></div><div class="dash-bar-label">Mar</div></div>
+    </div>
   </div>
-</div>
-<script>
-var expression = '';
-function inputNum(n) { expression += n; update(); }
-function inputOp(o) { expression += o; update(); }
-function clearCalc() { expression = ''; document.getElementById('expr').textContent = ''; document.getElementById('result').textContent = '0'; }
-function update() { document.getElementById('expr').textContent = expression; }
-function calc() {
-  try {
-    var r = Function('"use strict"; return (' + expression + ')')();
-    document.getElementById('result').textContent = Number.isFinite(r) ? parseFloat(r.toFixed(8)).toString() : 'Error';
-  } catch(e) { document.getElementById('result').textContent = 'Error'; }
-}
-</script>`;
+  <div class="dash-legend">
+    <div class="dash-legend-item"><div class="dash-legend-dot" style="background: var(--color-text-success)"></div>Above target</div>
+    <div class="dash-legend-item"><div class="dash-legend-dot" style="background: var(--color-text-danger)"></div>Below target</div>
+    <div class="dash-legend-item"><div class="dash-legend-dot" style="background: var(--color-text-tertiary)"></div>No change</div>
+  </div>
+</div>`;
 
 export const SEED_TEMPLATES: SeedTemplate[] = [
   {
@@ -223,11 +218,11 @@ export const SEED_TEMPLATES: SeedTemplate[] = [
     version: 1,
   },
   {
-    id: "seed-calculator-001",
-    name: "Calculator",
-    description: "Interactive calculator with basic arithmetic operations",
-    html: calculatorHtml,
-    data_description: "N/A — interactive widget, no data substitution needed",
+    id: "seed-dashboard-001",
+    name: "Dashboard",
+    description: "KPI dashboard with metrics cards and bar chart for quarterly performance",
+    html: dashboardHtml,
+    data_description: "Title, subtitle, KPI labels/values/changes, monthly bar chart data, legend items",
     created_at: "2026-01-01T00:00:02.000Z",
     version: 1,
   },
