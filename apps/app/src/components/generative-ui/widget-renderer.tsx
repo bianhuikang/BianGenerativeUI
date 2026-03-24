@@ -388,7 +388,7 @@ window.addEventListener('message', function(e) {
     // Use idiomorph to diff/patch DOM (preserves existing nodes, no flicker)
     if (window.Idiomorph) {
       try {
-        Idiomorph.morph(content, tmp.innerHTML, {
+        Idiomorph.morph(content, tmp, {
           morphStyle: 'innerHTML',
           callbacks: {
             beforeNodeAdded: function(node) {
