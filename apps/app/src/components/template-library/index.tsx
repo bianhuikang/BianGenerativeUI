@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useAgent } from "@copilotkit/react-core/v2";
 import { TemplateCard } from "./template-card";
-import { SEED_TEMPLATES } from "./seed-templates";
+import { SEED_TEMPLATES, SEED_IDS } from "./seed-templates";
 
 interface TemplateLibraryProps {
   open: boolean;
@@ -75,7 +75,7 @@ export function TemplateLibrary({ open, onClose }: TemplateLibraryProps) {
   const handleDelete = (id: string) => {
     agent.setState({
       ...agent.state,
-      templates: templates.filter((t) => t.id !== id),
+      templates: agentTemplates.filter((t) => t.id !== id),
     });
   };
 
@@ -175,7 +175,7 @@ export function TemplateLibrary({ open, onClose }: TemplateLibraryProps) {
                   dataDescription={t.data_description}
                   version={t.version}
                   onApply={handleApplyClick}
-                  onDelete={handleDelete}
+                  onDelete={SEED_IDS.has(t.id) ? undefined : handleDelete}
                 />
               ))}
             </div>

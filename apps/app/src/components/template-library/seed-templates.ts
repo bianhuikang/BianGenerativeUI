@@ -198,6 +198,8 @@ const dashboardHtml = `<style>
   </div>
 </div>`;
 
+export const SEED_IDS = new Set(["seed-weather-001", "seed-invoice-001", "seed-dashboard-001"]);
+
 export const SEED_TEMPLATES: SeedTemplate[] = [
   {
     id: "seed-weather-001",

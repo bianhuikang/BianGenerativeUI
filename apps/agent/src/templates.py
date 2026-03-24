@@ -18,6 +18,70 @@ class UITemplate(TypedDict, total=False):
     component_data: Optional[dict[str, Any]]
 
 
+# Built-in seed templates — must stay in sync with apps/app/src/components/template-library/seed-templates.ts
+# Only id, name, description, html, and data_description are needed for apply_template lookups.
+SEED_TEMPLATES: list[UITemplate] = [
+    {
+        "id": "seed-weather-001",
+        "name": "Weather",
+        "description": "Current weather conditions card with temperature, humidity, wind, and UV index",
+        "html": "",  # Populated at module load from _SEED_HTML below
+        "data_description": "City name, date, temperature, condition, humidity, wind speed/direction, UV index",
+        "version": 1,
+    },
+    {
+        "id": "seed-invoice-001",
+        "name": "Invoice Card",
+        "description": "Compact invoice card with amount, client info, and action buttons",
+        "html": "",
+        "data_description": "Title, amount, description, client name, billing month, invoice number, due date",
+        "version": 1,
+    },
+    {
+        "id": "seed-dashboard-001",
+        "name": "Dashboard",
+        "description": "KPI dashboard with metrics cards and bar chart for quarterly performance",
+        "html": "",
+        "data_description": "Title, subtitle, KPI labels/values/changes, monthly bar chart data, legend items",
+        "version": 1,
+    },
+]
+
+# Load seed HTML from the frontend source so there's a single source of truth.
+# If the file isn't available (e.g. in a standalone agent deploy), seeds will
+# still be discoverable by name but with empty HTML — the agent can regenerate.
+def _load_seed_html() -> None:
+    from pathlib import Path
+
+    seed_file = Path(__file__).resolve().parents[2] / "app" / "src" / "components" / "template-library" / "seed-templates.ts"
+    if not seed_file.exists():
+        return
+    text = seed_file.read_text()
+    # Map TS variable names to seed IDs
+    mapping = {
+        "weatherHtml": "seed-weather-001",
+        "invoiceHtml": "seed-invoice-001",
+        "dashboardHtml": "seed-dashboard-001",
+    }
+    for var_name, seed_id in mapping.items():
+        # Extract template literal content between first ` and last `
+        marker = f"const {var_name} = `"
+        start = text.find(marker)
+        if start == -1:
+            continue
+        start += len(marker)
+        end = text.find("`;", start)
+        if end == -1:
+            continue
+        html = text[start:end]
+        for seed in SEED_TEMPLATES:
+            if seed["id"] == seed_id:
+                seed["html"] = html
+                break
+
+_load_seed_html()
+
+
 @tool
 def save_template(
     name: str,
@@ -63,9 +127,12 @@ def save_template(
 @tool
 def list_templates(runtime: ToolRuntime):
     """
-    List all saved UI templates. Returns template summaries (id, name, description, data_description).
+    List all saved UI templates, including built-in seed templates.
+    Returns template summaries (id, name, description, data_description).
     """
-    templates = runtime.state.get("templates", [])
+    state_templates = runtime.state.get("templates", [])
+    state_ids = {t["id"] for t in state_templates}
+    templates = [*state_templates, *(s for s in SEED_TEMPLATES if s["id"] not in state_ids)]
     return [
         {
             "id": t["id"],
@@ -88,11 +155,16 @@ def apply_template(runtime: ToolRuntime, name: str = "", template_id: str = ""):
     frontend when the user picks a template from the library). If pending_template
     is present, it takes priority over name/template_id arguments.
 
+    Also searches built-in seed templates, so users can apply them by name in chat
+    even if the frontend hasn't pushed them into agent state yet.
+
     Args:
         name: The name of the template to apply (fallback if no pending_template)
         template_id: The ID of the template to apply (fallback if no pending_template)
     """
-    templates = runtime.state.get("templates", [])
+    state_templates = runtime.state.get("templates", [])
+    state_ids = {t["id"] for t in state_templates}
+    templates = [*state_templates, *(s for s in SEED_TEMPLATES if s["id"] not in state_ids)]
 
     # Check pending_template from frontend first — this is the most reliable source
     pending = runtime.state.get("pending_template")

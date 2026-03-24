@@ -18,7 +18,7 @@ interface TemplateCardProps {
   dataDescription: string;
   version: number;
   onApply: (id: string) => void;
-  onDelete: (id: string) => void;
+  onDelete?: (id: string) => void;
 }
 
 /** Mini bar chart preview rendered as inline SVG */
@@ -219,16 +219,18 @@ body {
         >
           Apply
         </button>
-        <button
-          onClick={() => onDelete(id)}
-          className="text-xs px-3 py-1.5 rounded-lg transition-colors duration-150"
-          style={{
-            border: "1px solid var(--color-border-tertiary, rgba(0,0,0,0.1))",
-            color: "var(--color-text-danger, #A32D2D)",
-          }}
-        >
-          Delete
-        </button>
+        {onDelete && (
+          <button
+            onClick={() => onDelete(id)}
+            className="text-xs px-3 py-1.5 rounded-lg transition-colors duration-150"
+            style={{
+              border: "1px solid var(--color-border-tertiary, rgba(0,0,0,0.1))",
+              color: "var(--color-text-danger, #A32D2D)",
+            }}
+          >
+            Delete
+          </button>
+        )}
       </div>
     </div>
   );
