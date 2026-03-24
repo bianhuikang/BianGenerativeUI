@@ -10,6 +10,7 @@ from langchain_openai import ChatOpenAI
 from src.query import query_data
 from src.todos import AgentState, todo_tools
 from src.form import generate_form
+from src.templates import template_tools
 from skills import load_all_skills
 
 # Load all visualization skills
@@ -17,7 +18,7 @@ _skills_text = load_all_skills()
 
 agent = create_agent(
     model=ChatOpenAI(model="gpt-5.4-2026-03-05"),
-    tools=[query_data, *todo_tools, generate_form],
+    tools=[query_data, *todo_tools, generate_form, *template_tools],
     middleware=[CopilotKitMiddleware()],
     state_schema=AgentState,
     system_prompt=f"""
@@ -47,6 +48,28 @@ agent = create_agent(
         Follow the skills below for how to produce high-quality visuals:
 
         {_skills_text}
+
+        ## UI Templates
+
+        Users can save generated UIs as reusable templates and apply them later.
+        You have backend tools: `save_template`, `list_templates`, `apply_template`, `delete_template`.
+
+        **When a user asks to apply/recreate a template with new data:**
+        Check `pending_template` in state — the frontend sets this when the user picks a template.
+        If `pending_template` is present (has `id` and `name`):
+        1. Call `apply_template(template_id=pending_template["id"])` to retrieve the HTML
+        2. Take the returned HTML and COPY IT EXACTLY, only replacing the data values
+           (names, numbers, dates, labels, amounts) to match the user's message
+        3. Render the modified HTML using `widgetRenderer`
+        4. Call `clear_pending_template` to reset the pending state
+
+        If no `pending_template` is set but the user mentions a template by name, use
+        `apply_template(name="...")` instead.
+
+        CRITICAL: Do NOT rewrite or generate HTML from scratch. Take the original HTML string,
+        find-and-replace ONLY the data values, and pass the result to widgetRenderer.
+        This preserves the exact layout and styling of the original template.
+        For bar/pie chart templates, use `barChart` or `pieChart` component instead.
     """,
 )
 

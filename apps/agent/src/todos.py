@@ -2,8 +2,10 @@ from langchain.agents import AgentState as BaseAgentState
 from langchain.tools import ToolRuntime, tool
 from langchain.messages import ToolMessage
 from langgraph.types import Command
-from typing import TypedDict, Literal
+from typing import Optional, TypedDict, Literal
 import uuid
+
+from src.templates import UITemplate
 
 class Todo(TypedDict):
     id: str
@@ -12,8 +14,14 @@ class Todo(TypedDict):
     emoji: str
     status: Literal["pending", "completed"]
 
+class PendingTemplate(TypedDict, total=False):
+    id: str
+    name: str
+
 class AgentState(BaseAgentState):
     todos: list[Todo]
+    templates: list[UITemplate]
+    pending_template: Optional[PendingTemplate]
 
 @tool
 def manage_todos(todos: list[Todo], runtime: ToolRuntime) -> Command:

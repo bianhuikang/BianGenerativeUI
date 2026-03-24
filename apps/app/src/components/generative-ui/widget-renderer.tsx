@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { z } from "zod";
+import { SaveTemplateOverlay } from "./save-template-overlay";
 
 // ─── Zod Schema (CopilotKit parameter contract) ─────────────────────
 export const WidgetRendererProps = z.object({
@@ -24,7 +25,7 @@ export const WidgetRendererProps = z.object({
 type WidgetRendererProps = z.infer<typeof WidgetRendererProps>;
 
 // ─── Injected CSS: Theme Variables (Layer 3) ─────────────────────────
-const THEME_CSS = `
+export const THEME_CSS = `
 :root {
   --color-background-primary: #ffffff;
   --color-background-secondary: #f7f6f3;
@@ -346,6 +347,40 @@ document.addEventListener('click', function(e) {
   }
 });
 
+// Listen for streaming content updates from parent
+window.addEventListener('message', function(e) {
+  if (e.source !== window.parent) return;
+  if (e.data && e.data.type === 'update-content') {
+    var content = document.getElementById('content');
+    if (content) {
+      // Strip script tags from HTML before inserting — scripts are handled separately below
+      var tmp = document.createElement('div');
+      tmp.innerHTML = e.data.html;
+      var incomingScripts = [];
+      tmp.querySelectorAll('script').forEach(function(s) {
+        incomingScripts.push({ src: s.src, text: s.textContent });
+        s.remove();
+      });
+      content.innerHTML = tmp.innerHTML;
+
+      // Execute only new scripts (not previously executed)
+      incomingScripts.forEach(function(scriptInfo) {
+        var key = scriptInfo.src || scriptInfo.text;
+        if (content.getAttribute('data-exec-' + btoa(key).slice(0, 16))) return;
+        content.setAttribute('data-exec-' + btoa(key).slice(0, 16), '1');
+        var newScript = document.createElement('script');
+        if (scriptInfo.src) {
+          newScript.src = scriptInfo.src;
+        } else {
+          newScript.textContent = scriptInfo.text;
+        }
+        content.appendChild(newScript);
+      });
+      reportHeight();
+    }
+  }
+});
+
 // Auto-resize: report content height to host
 function reportHeight() {
   var content = document.getElementById('content');
@@ -361,7 +396,8 @@ setTimeout(function() { clearInterval(_resizeInterval); }, 15000);
 `;
 
 // ─── Document Assembly ───────────────────────────────────────────────
-function assembleDocument(html: string): string {
+/** Empty shell or shell with initial content — iframe loads once, content streamed via postMessage */
+function assembleShell(initialHtml: string = ""): string {
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -387,7 +423,7 @@ function assembleDocument(html: string): string {
 </head>
 <body>
   <div id="content">
-    ${html}
+    ${initialHtml}
   </div>
   <script>
     ${BRIDGE_JS}
@@ -411,7 +447,6 @@ function useLoadingPhrase(active: boolean) {
   const [index, setIndex] = useState(0);
   useEffect(() => {
     if (!active) return;
-    setIndex(0);
     const interval = setInterval(() => {
       setIndex((i) => (i + 1) % LOADING_PHRASES.length);
     }, 1800);
@@ -421,12 +456,21 @@ function useLoadingPhrase(active: boolean) {
 }
 
 // ─── React Component ─────────────────────────────────────────────────
+
 export function WidgetRenderer({ title, description, html }: WidgetRendererProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(0);
   const [loaded, setLoaded] = useState(false);
-  // Track what html has been committed to the iframe to avoid redundant reloads
+  // Whether the iframe shell has been initialized
+  const shellReadyRef = useRef(false);
+  // Track the last html sent to the iframe to avoid redundant updates
   const committedHtmlRef = useRef("");
+  // Tracks whether html content has settled (stopped changing)
+  const [htmlSettled, setHtmlSettled] = useState(false);
+  const [prevHtml, setPrevHtml] = useState(html);
+  const settledTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [fadingOut, setFadingOut] = useState(false);
 
   const handleMessage = useCallback((e: MessageEvent) => {
     // Only handle messages from our own iframe
@@ -445,20 +489,63 @@ export function WidgetRenderer({ title, description, html }: WidgetRendererProps
     return () => window.removeEventListener("message", handleMessage);
   }, [handleMessage]);
 
-  // Write to iframe imperatively — bypasses React reconciliation so the
-  // iframe only reloads when the html *content* truly changes, preserving
-  // internal JS state (Three.js scenes, step counters, etc.) across
-  // CopilotKit re-renders.
+  // Reset settled/fade state when html changes (adjust state during render)
+  if (html !== prevHtml) {
+    setPrevHtml(html);
+    setHtmlSettled(false);
+    setFadingOut(false);
+  }
+
+  // Initialize the iframe shell once when html first appears.
+  // Shell loads EMPTY so partial streaming fragments (e.g. unclosed <style>)
+  // can't break the bridge script. All content is streamed via postMessage.
   useEffect(() => {
     if (!html || !iframeRef.current) return;
+
+    if (!shellReadyRef.current) {
+      shellReadyRef.current = true;
+      iframeRef.current.srcdoc = assembleShell();
+      return;
+    }
+
+    // Wait for iframe to load before sending postMessage
+    if (!loaded) return;
+
+    // Stream content into existing iframe via postMessage
     if (html === committedHtmlRef.current) return;
     committedHtmlRef.current = html;
-    iframeRef.current.srcdoc = assembleDocument(html);
-    setLoaded(false);
-    setHeight(0);
+
+    const iframe = iframeRef.current;
+    if (iframe.contentWindow) {
+      // targetOrigin "*" is required: the sandboxed iframe (allow-scripts only,
+      // no allow-same-origin) has a null origin, so no specific origin can be used.
+      iframe.contentWindow.postMessage(
+        { type: "update-content", html },
+        "*"
+      );
+    }
+  }, [html, loaded]);
+
+  // Detect when html has stopped changing (streaming complete).
+  // Resets a debounce timer on every html update — settles after 800ms of no changes.
+  useEffect(() => {
+    if (!html) return;
+    if (settledTimerRef.current) clearTimeout(settledTimerRef.current);
+    if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+    settledTimerRef.current = setTimeout(() => {
+      setHtmlSettled(true);
+      setFadingOut(true);
+      fadeTimerRef.current = setTimeout(() => {
+        setFadingOut(false);
+      }, 600);
+    }, 800);
+    return () => {
+      if (settledTimerRef.current) clearTimeout(settledTimerRef.current);
+      if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+    };
   }, [html]);
 
-  // Fallback: if iframe has html but hasn't reported ready after 4s, force-show
+  // Fallback: if iframe has html but hasn't reported a height after 4s, force-show
   useEffect(() => {
     if (!html || (loaded && height > 0)) return;
     const timeout = setTimeout(() => {
@@ -468,71 +555,72 @@ export function WidgetRenderer({ title, description, html }: WidgetRendererProps
     return () => clearTimeout(timeout);
   }, [html, loaded, height]);
 
-  // Iframe is ready when it has loaded AND reported a valid height
-  const ready = loaded && height > 0;
-  const showLoading = !!html && !ready;
-  const loadingPhrase = useLoadingPhrase(showLoading);
+  // Show the iframe as soon as we have html (shell initializes on first html)
+  const showIframe = !!html;
+  // Streaming is active until html has stopped changing
+  const isStreaming = !!html && !htmlSettled;
+  const loadingPhrase = useLoadingPhrase(isStreaming);
+  const showStreamingIndicator = isStreaming || fadingOut;
 
   return (
     <div className="w-full my-3">
-      {/* Loading indicator: visible until iframe is fully ready */}
-      {showLoading && (
+      {/* Loading phrases — sits above the widget, fades out when ready */}
+      {showStreamingIndicator && (
         <div
-          className="overflow-hidden rounded-xl"
+          className="mb-2 transition-all duration-500 ease-out"
           style={{
-            border: "1px solid var(--color-border-glass)",
-            background: "var(--surface-primary)",
+            opacity: isStreaming ? 1 : 0,
+            maxHeight: isStreaming ? 32 : 0,
+            overflow: "hidden",
           }}
         >
-          {/* Animated gradient border top */}
-          <div
-            style={{
-              height: 2,
-              background: "linear-gradient(90deg, var(--color-lilac), var(--color-mint), var(--color-lilac))",
-              backgroundSize: "200% 100%",
-              animation: "shimmer 1.5s ease-in-out infinite",
-            }}
-          />
-          <div className="flex items-center gap-3 px-4 py-3">
-            {/* Spinning icon */}
+          <div className="flex items-center gap-2">
             <div
               style={{
-                width: 18,
-                height: 18,
+                width: 12,
+                height: 12,
                 borderRadius: "50%",
-                border: "2px solid var(--color-border-light)",
-                borderTopColor: "var(--color-lilac-dark)",
+                border: "2px solid var(--color-border-light, rgba(0,0,0,0.1))",
+                borderTopColor: "var(--color-lilac-dark, #6366f1)",
                 animation: "spin 0.8s linear infinite",
                 flexShrink: 0,
               }}
             />
             <span
-              className="text-[13px] font-medium"
-              style={{ color: "var(--text-secondary)" }}
+              className="text-[12px] font-medium"
+              style={{ color: "var(--text-secondary, #666)" }}
             >
               {loadingPhrase}...
             </span>
           </div>
         </div>
       )}
-      {/* Iframe: always mounted so ref is stable; srcdoc set imperatively.
-          No srcDoc React prop — prevents React from reloading the iframe
-          on parent re-renders. */}
-      <iframe
-        ref={iframeRef}
-        sandbox="allow-scripts allow-same-origin"
-        className="w-full border-0"
-        onLoad={() => setLoaded(true)}
-        style={{
-          height: ready ? height : 0,
-          overflow: "hidden",
-          background: "transparent",
-          opacity: ready ? 1 : 0,
-          transition: "opacity 300ms ease-in",
-          display: html ? undefined : "none",
-        }}
+
+      <SaveTemplateOverlay
         title={title}
-      />
+        description={description}
+        html={html}
+        componentType="widgetRenderer"
+        ready={!!html && htmlSettled}
+      >
+        {/* Iframe: always mounted so ref is stable; srcdoc set once,
+            content streamed via postMessage for progressive rendering. */}
+        <iframe
+          ref={iframeRef}
+          sandbox="allow-scripts"
+          className="w-full border-0"
+          onLoad={() => setLoaded(true)}
+          style={{
+            height: showIframe ? (height > 0 ? height : 300) : 0,
+            overflow: "hidden",
+            background: "transparent",
+            opacity: showIframe ? 1 : 0,
+            transition: "height 200ms ease-out",
+            display: html ? undefined : "none",
+          }}
+          title={title}
+        />
+      </SaveTemplateOverlay>
     </div>
   );
 }
