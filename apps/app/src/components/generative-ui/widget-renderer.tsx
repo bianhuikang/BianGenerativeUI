@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { z } from "zod";
 import { SaveTemplateOverlay } from "./save-template-overlay";
+import { IDIOMORPH_JS } from "./idiomorph-inline";
 
 // ─── Zod Schema (CopilotKit parameter contract) ─────────────────────
 export const WidgetRendererProps = z.object({
@@ -302,16 +303,21 @@ input[type="checkbox"], input[type="radio"] {
 a { color: var(--color-text-info); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
-/* Progressive reveal for content children */
-#content > * {
+/* First render: stagger all children */
+#content.initial-render > * {
   animation: fadeSlideIn 0.4s ease-out both;
 }
-#content > *:nth-child(1) { animation-delay: 0s; }
-#content > *:nth-child(2) { animation-delay: 0.06s; }
-#content > *:nth-child(3) { animation-delay: 0.12s; }
-#content > *:nth-child(4) { animation-delay: 0.18s; }
-#content > *:nth-child(5) { animation-delay: 0.24s; }
-#content > *:nth-child(n+6) { animation-delay: 0.3s; }
+#content.initial-render > *:nth-child(1) { animation-delay: 0s; }
+#content.initial-render > *:nth-child(2) { animation-delay: 0.06s; }
+#content.initial-render > *:nth-child(3) { animation-delay: 0.12s; }
+#content.initial-render > *:nth-child(4) { animation-delay: 0.18s; }
+#content.initial-render > *:nth-child(5) { animation-delay: 0.24s; }
+#content.initial-render > *:nth-child(n+6) { animation-delay: 0.3s; }
+
+/* Subsequent morphs: only new elements animate in */
+.morph-enter {
+  animation: fadeSlideIn 0.4s ease-out both;
+}
 
 @keyframes fadeSlideIn {
   from { opacity: 0; transform: translateY(8px); }
@@ -352,32 +358,72 @@ window.addEventListener('message', function(e) {
   if (e.source !== window.parent) return;
   if (e.data && e.data.type === 'update-content') {
     var content = document.getElementById('content');
-    if (content) {
-      // Strip script tags from HTML before inserting — scripts are handled separately below
-      var tmp = document.createElement('div');
-      tmp.innerHTML = e.data.html;
-      var incomingScripts = [];
-      tmp.querySelectorAll('script').forEach(function(s) {
-        incomingScripts.push({ src: s.src, text: s.textContent });
-        s.remove();
-      });
-      content.innerHTML = tmp.innerHTML;
+    if (!content) return;
 
-      // Execute only new scripts (not previously executed)
-      incomingScripts.forEach(function(scriptInfo) {
-        var key = scriptInfo.src || scriptInfo.text;
-        if (content.getAttribute('data-exec-' + btoa(key).slice(0, 16))) return;
-        content.setAttribute('data-exec-' + btoa(key).slice(0, 16), '1');
-        var newScript = document.createElement('script');
-        if (scriptInfo.src) {
-          newScript.src = scriptInfo.src;
-        } else {
-          newScript.textContent = scriptInfo.text;
-        }
-        content.appendChild(newScript);
-      });
+    // Strip script tags from HTML before inserting — scripts are handled separately below
+    var tmp = document.createElement('div');
+    tmp.innerHTML = e.data.html;
+    var incomingScripts = [];
+    tmp.querySelectorAll('script').forEach(function(s) {
+      incomingScripts.push({ src: s.src, text: s.textContent });
+      s.remove();
+    });
+
+    // Reset tracking when content is cleared (new streaming session)
+    if (!tmp.innerHTML.trim()) {
+      content.removeAttribute('data-has-content');
+      content.innerHTML = '';
       reportHeight();
+      return;
     }
+
+    // First render: add stagger class for initial entrance animation
+    var isFirstRender = !content.hasAttribute('data-has-content');
+    if (isFirstRender) {
+      content.classList.add('initial-render');
+      content.setAttribute('data-has-content', '1');
+      setTimeout(function() { content.classList.remove('initial-render'); }, 800);
+    }
+
+    // Use idiomorph to diff/patch DOM (preserves existing nodes, no flicker)
+    if (window.Idiomorph) {
+      try {
+        Idiomorph.morph(content, tmp.innerHTML, {
+          morphStyle: 'innerHTML',
+          callbacks: {
+            beforeNodeAdded: function(node) {
+              // Tag new element nodes for entrance animation
+              if (node.nodeType === 1) {
+                node.classList.add('morph-enter');
+                node.addEventListener('animationend', function() {
+                  node.classList.remove('morph-enter');
+                }, { once: true });
+              }
+            }
+          }
+        });
+      } catch (err) {
+        // Fallback: full replacement on morph failure
+        content.innerHTML = tmp.innerHTML;
+      }
+    } else {
+      content.innerHTML = tmp.innerHTML;
+    }
+
+    // Execute only new scripts (not previously executed)
+    incomingScripts.forEach(function(scriptInfo) {
+      var key = scriptInfo.src || scriptInfo.text;
+      if (content.getAttribute('data-exec-' + btoa(key).slice(0, 16))) return;
+      content.setAttribute('data-exec-' + btoa(key).slice(0, 16), '1');
+      var newScript = document.createElement('script');
+      if (scriptInfo.src) {
+        newScript.src = scriptInfo.src;
+      } else {
+        newScript.textContent = scriptInfo.text;
+      }
+      content.appendChild(newScript);
+    });
+    reportHeight();
   }
 });
 
@@ -425,6 +471,7 @@ function assembleShell(initialHtml: string = ""): string {
   <div id="content">
     ${initialHtml}
   </div>
+  <script>${IDIOMORPH_JS}</script>
   <script>
     ${BRIDGE_JS}
   </script>
