@@ -3,6 +3,12 @@
 import { useState, useCallback, useMemo, useRef, type ReactNode } from "react";
 import { useAgent } from "@copilotkit/react-core/v2";
 import { SEED_TEMPLATES } from "@/components/template-library/seed-templates";
+import {
+  assembleStandaloneHtml,
+  chartToStandaloneHtml,
+  triggerDownload,
+  slugify,
+} from "./export-utils";
 
 type SaveState = "idle" | "input" | "saving" | "saved";
 
@@ -34,6 +40,7 @@ export function SaveTemplateOverlay({
   const { agent } = useAgent();
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [templateName, setTemplateName] = useState("");
+  const [copyState, setCopyState] = useState<"idle" | "copied">("idle");
 
   // Capture pending_template at mount time — it may be cleared by the agent later.
   // Uses ref (not state) to avoid an async re-render that would shift sibling positions
@@ -93,6 +100,35 @@ export function SaveTemplateOverlay({
       setTimeout(() => setSaveState("idle"), 1800);
     }, 400);
   }, [agent, templateName, title, description, html, componentData, componentType]);
+
+  const exportHtml = useMemo(() => {
+    if (componentType === "widgetRenderer" && html) {
+      return assembleStandaloneHtml(html, title);
+    }
+    if ((componentType === "barChart" || componentType === "pieChart") && componentData) {
+      const chartType = componentType === "barChart" ? "bar" : "pie";
+      return chartToStandaloneHtml(
+        chartType,
+        componentData as { title: string; description: string; data: Array<{ label: string; value: number }> }
+      );
+    }
+    return null;
+  }, [componentType, html, componentData, title]);
+
+  const handleDownload = useCallback(() => {
+    if (!exportHtml) return;
+    const filename = `${slugify(title) || "visualization"}.html`;
+    triggerDownload(exportHtml, filename);
+  }, [exportHtml, title]);
+
+  const handleCopy = useCallback(() => {
+    const textToCopy = componentType === "widgetRenderer" ? html : exportHtml;
+    if (!textToCopy) return;
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      setCopyState("copied");
+      setTimeout(() => setCopyState("idle"), 1800);
+    });
+  }, [componentType, html, exportHtml]);
 
   return (
     <div className="relative">
@@ -196,23 +232,109 @@ export function SaveTemplateOverlay({
           </div>
         )}
 
-        {/* Idle: show save button (badge moved outside this container) */}
+        {/* Idle with matched template: show download/copy only */}
+        {saveState === "idle" && matchedTemplate && exportHtml && (
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={handleCopy}
+              className="flex items-center justify-center rounded-lg p-1.5 shadow-md transition-all duration-150 hover:scale-105"
+              style={{
+                background: "var(--surface-primary, #fff)",
+                border: "1px solid var(--color-border-glass, rgba(0,0,0,0.1))",
+                color: copyState === "copied" ? "var(--color-text-success, #3B6D11)" : "var(--text-secondary, #666)",
+              }}
+              title={copyState === "copied" ? "Copied!" : "Copy code"}
+            >
+              {copyState === "copied" ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 6 9 17l-5-5" />
+                </svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+              )}
+            </button>
+            <button
+              onClick={handleDownload}
+              className="flex items-center justify-center rounded-lg p-1.5 shadow-md transition-all duration-150 hover:scale-105"
+              style={{
+                background: "var(--surface-primary, #fff)",
+                border: "1px solid var(--color-border-glass, rgba(0,0,0,0.1))",
+                color: "var(--text-secondary, #666)",
+              }}
+              title="Download as HTML"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+            </button>
+          </div>
+        )}
+
+        {/* Idle without matched template: show all action buttons */}
         {saveState === "idle" && !matchedTemplate && (
-          <button
-            onClick={() => setSaveState("input")}
-            className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium shadow-md transition-all duration-150 hover:scale-105"
-            style={{
-              background: "var(--surface-primary, #fff)",
-              border: "1px solid var(--color-border-glass, rgba(0,0,0,0.1))",
-              color: "var(--text-secondary, #666)",
-            }}
-            title="Save as Template"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
-            </svg>
-            Save as Template
-          </button>
+          <div className="flex items-center gap-1.5">
+            {exportHtml && (
+              <>
+                <button
+                  onClick={handleCopy}
+                  className="flex items-center justify-center rounded-lg p-1.5 shadow-md transition-all duration-150 hover:scale-105"
+                  style={{
+                    background: "var(--surface-primary, #fff)",
+                    border: "1px solid var(--color-border-glass, rgba(0,0,0,0.1))",
+                    color: copyState === "copied" ? "var(--color-text-success, #3B6D11)" : "var(--text-secondary, #666)",
+                  }}
+                  title={copyState === "copied" ? "Copied!" : "Copy code"}
+                >
+                  {copyState === "copied" ? (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                  ) : (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    </svg>
+                  )}
+                </button>
+                <button
+                  onClick={handleDownload}
+                  className="flex items-center justify-center rounded-lg p-1.5 shadow-md transition-all duration-150 hover:scale-105"
+                  style={{
+                    background: "var(--surface-primary, #fff)",
+                    border: "1px solid var(--color-border-glass, rgba(0,0,0,0.1))",
+                    color: "var(--text-secondary, #666)",
+                  }}
+                  title="Download as HTML"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                </button>
+              </>
+            )}
+            <button
+              onClick={() => setSaveState("input")}
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium shadow-md transition-all duration-150 hover:scale-105"
+              style={{
+                background: "var(--surface-primary, #fff)",
+                border: "1px solid var(--color-border-glass, rgba(0,0,0,0.1))",
+                color: "var(--text-secondary, #666)",
+              }}
+              title="Save as Template"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
+              </svg>
+              Save as Template
+            </button>
+          </div>
         )}
       </div>
 
