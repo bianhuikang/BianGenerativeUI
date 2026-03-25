@@ -43,7 +43,7 @@ class BoundedMemorySaver(MemorySaver):
 
         result = super().put(config, checkpoint, metadata, new_versions)
 
-        while len(self.storage) > self.max_threads:
+        while len(self.storage) > self.max_threads and self._insertion_order:
             oldest_thread, _ = self._insertion_order.popitem(last=False)
             if oldest_thread in self.storage:
                 logger.info(
