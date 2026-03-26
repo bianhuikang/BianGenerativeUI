@@ -18,13 +18,14 @@ from src.bounded_memory_saver import BoundedMemorySaver
 from src.query import query_data
 from src.todos import AgentState, todo_tools
 from src.form import generate_form
+from src.plan import plan_visualization
 from src.templates import template_tools
 
 load_dotenv()
 
 agent = create_deep_agent(
     model=ChatOpenAI(model=os.environ.get("LLM_MODEL", "gpt-5.4-2026-03-05")),
-    tools=[query_data, *todo_tools, generate_form, *template_tools],
+    tools=[query_data, plan_visualization, *todo_tools, generate_form, *template_tools],
     middleware=[CopilotKitMiddleware()],
     context_schema=AgentState,
     skills=[str(Path(__file__).parent / "skills")],
@@ -52,6 +53,23 @@ agent = create_deep_agent(
         - CSS variables for light/dark mode theming (use var(--color-text-primary), etc.)
         - Pre-styled form elements (buttons, inputs, sliders look native automatically)
         - Pre-built SVG CSS classes for color ramps (.c-purple, .c-teal, .c-blue, etc.)
+
+        ## Visualization Workflow (MANDATORY)
+
+        When producing ANY visual response (widgetRenderer, pieChart, barChart), you MUST
+        follow this exact sequence:
+
+        1. **Acknowledge** — Reply with 1-2 sentences of plain text acknowledging the
+           request and setting context for what the visualization will show.
+        2. **Plan** — Call `plan_visualization` with your approach, technology choice,
+           and 2-4 key elements. Keep it concise.
+        3. **Build** — Call the appropriate visualization tool (widgetRenderer, pieChart,
+           or barChart).
+        4. **Narrate** — After the visualization, add 2-3 sentences walking through
+           what was built and offering to go deeper.
+
+        NEVER skip the plan_visualization step. NEVER call widgetRenderer, pieChart, or
+        barChart without calling plan_visualization first.
 
         ## UI Templates
 

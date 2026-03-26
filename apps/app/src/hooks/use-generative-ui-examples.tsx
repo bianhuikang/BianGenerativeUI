@@ -7,6 +7,7 @@ import {
   useFrontendTool,
   useHumanInTheLoop,
   useDefaultRenderTool,
+  useRenderTool,
 } from "@copilotkit/react-core/v2";
 
 // Generative UI imports
@@ -15,6 +16,7 @@ import { BarChart, BarChartProps } from "@/components/generative-ui/charts/bar-c
 import { WidgetRenderer, WidgetRendererProps } from "@/components/generative-ui/widget-renderer";
 import { MeetingTimePicker } from "@/components/generative-ui/meeting-time-picker";
 import { ToolReasoning } from "@/components/tool-rendering";
+import { PlanCard } from "@/components/generative-ui/plan-card";
 
 export const useGenerativeUIExamples = () => {
   const { theme, setTheme } = useTheme();
@@ -59,6 +61,22 @@ export const useGenerativeUIExamples = () => {
       "simulations, math plots, and any visual explanation.",
     parameters: WidgetRendererProps,
     render: WidgetRenderer,
+  });
+
+  // --------------------------
+  // 🪁 Plan Visualization: Custom rendering for the planning step
+  // --------------------------
+  const PlanVisualizationParams = z.object({
+    approach: z.string(),
+    technology: z.string(),
+    key_elements: z.array(z.string()),
+  });
+  useRenderTool({
+    name: "plan_visualization",
+    parameters: PlanVisualizationParams,
+    render: ({ status, parameters }) => (
+      <PlanCard status={status} {...parameters} />
+    ),
   });
 
   // --------------------------
