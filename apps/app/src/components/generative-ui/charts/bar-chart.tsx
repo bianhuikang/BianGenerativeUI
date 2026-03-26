@@ -1,7 +1,7 @@
 import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { z } from 'zod';
 import { CHART_COLORS, CHART_CONFIG } from './config';
-import { ExportOverlay } from '../save-template-overlay';
+import { ExportOverlay } from '../export-overlay';
 
 export const BarChartProps = z.object({
   title: z.string().describe("Chart title"),

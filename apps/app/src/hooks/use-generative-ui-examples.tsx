@@ -74,9 +74,10 @@ export const useGenerativeUIExamples = () => {
   useRenderTool({
     name: "plan_visualization",
     parameters: PlanVisualizationParams,
-    render: ({ status, parameters }) => (
-      <PlanCard status={status} {...parameters} />
-    ),
+    render: ({ status, parameters }) => {
+      const { key_elements: keyElements, ...rest } = parameters;
+      return <PlanCard status={status} keyElements={keyElements} {...rest} />;
+    },
   });
 
   // --------------------------

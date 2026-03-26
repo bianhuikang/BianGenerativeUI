@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { z } from "zod";
-import { ExportOverlay } from "./save-template-overlay";
+import { ExportOverlay } from "./export-overlay";
 import { IDIOMORPH_JS } from "./idiomorph-inline";
 
 // ─── Zod Schema (CopilotKit parameter contract) ─────────────────────
@@ -456,16 +456,17 @@ window.addEventListener('message', function(e) {
 });
 
 // Auto-resize: report content height to host.
-// Temporarily collapse the container so viewport-relative children (100vh, 100%)
-// don't inflate the measurement — this gives us intrinsic content height only.
+// Clone the content off-screen so viewport-relative children (100vh, 100%)
+// don't inflate the reading and we never mutate the visible DOM (which would
+// re-trigger ResizeObserver and risk an infinite loop).
 function reportHeight() {
   var content = document.getElementById('content');
   if (!content) return;
-  content.style.height = '0';
-  content.style.overflow = 'hidden';
-  var h = content.scrollHeight;
-  content.style.height = '';
-  content.style.overflow = '';
+  var clone = content.cloneNode(true);
+  clone.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:' + content.offsetWidth + 'px;height:auto;overflow:hidden;visibility:hidden;pointer-events:none;';
+  document.body.appendChild(clone);
+  var h = clone.scrollHeight;
+  document.body.removeChild(clone);
   window.parent.postMessage({ type: 'widget-resize', height: h }, '*');
 }
 var ro = new ResizeObserver(reportHeight);

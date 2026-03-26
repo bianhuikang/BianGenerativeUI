@@ -76,6 +76,7 @@ export default function HomePage() {
             <CopilotChat
               labels={{
                 welcomeMessageText: "What do you want to visualize today?",
+                chatDisclaimerText: "Visualizations are AI-generated. You can retry the same prompt or ask the AI to refine the result.",
               }}
             />
           } />

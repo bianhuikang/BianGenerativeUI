@@ -6,10 +6,10 @@ interface PlanCardProps {
   status: "executing" | "inProgress" | "complete";
   approach?: string;
   technology?: string;
-  key_elements?: string[];
+  keyElements?: string[];
 }
 
-export function PlanCard({ status, approach, technology, key_elements }: PlanCardProps) {
+export function PlanCard({ status, approach, technology, keyElements }: PlanCardProps) {
   const detailsRef = useRef<HTMLDetailsElement>(null);
   const isRunning = status === "executing" || status === "inProgress";
 
@@ -41,9 +41,9 @@ export function PlanCard({ status, approach, technology, key_elements }: PlanCar
               </span>
             )}
             <p className="text-gray-600 dark:text-gray-400">{approach}</p>
-            {key_elements && key_elements.length > 0 && (
+            {keyElements && keyElements.length > 0 && (
               <ul className="list-disc pl-4 space-y-0.5">
-                {key_elements.map((el, i) => (
+                {keyElements.map((el, i) => (
                   <li key={i}>{el}</li>
                 ))}
               </ul>
