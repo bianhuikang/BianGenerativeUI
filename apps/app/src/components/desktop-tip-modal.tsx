@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 
 const DISMISSED_KEY = "desktop-tip-dismissed";
 
@@ -17,21 +17,34 @@ export function DesktopTipModal() {
         listeners = listeners.filter((l) => l !== listener);
       };
     },
-    () => !sessionStorage.getItem(DISMISSED_KEY),
+    () => {
+      try { return !sessionStorage.getItem(DISMISSED_KEY); }
+      catch { return false; }
+    },
     () => false,
   );
 
-  if (!notDismissed) return null;
-
   const dismiss = () => {
-    sessionStorage.setItem(DISMISSED_KEY, "1");
+    try { sessionStorage.setItem(DISMISSED_KEY, "1"); }
+    catch { /* privacy-restricted context */ }
     emitChange();
   };
+
+  useEffect(() => {
+    if (!notDismissed) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") dismiss();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  });
+
+  if (!notDismissed) return null;
 
   return (
     <div
       onClick={dismiss}
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-6 md:hidden"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-6 sm:hidden"
       style={{
         background: "rgba(0,0,0,0.45)",
         backdropFilter: "blur(6px)",
@@ -50,7 +63,7 @@ export function DesktopTipModal() {
           padding: "32px 28px",
           maxWidth: 340,
           width: "100%",
-          textAlign: "center" as const,
+          textAlign: "center",
           fontFamily: "var(--font-family)",
         }}
       >
