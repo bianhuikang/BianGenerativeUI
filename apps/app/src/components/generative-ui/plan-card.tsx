@@ -9,6 +9,13 @@ interface PlanCardProps {
   keyElements?: string[];
 }
 
+/**
+ * GenerativeUI 计划卡片组件
+ * @param status 计划状态
+ * @param approach 计划方法
+ * @param technology 技术
+ * @param keyElements 关键元素
+ */
 export function PlanCard({ status, approach, technology, keyElements }: PlanCardProps) {
   const detailsRef = useRef<HTMLDetailsElement>(null);
   const isRunning = status === "executing" || status === "inProgress";

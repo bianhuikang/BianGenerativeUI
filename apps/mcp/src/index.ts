@@ -4,7 +4,7 @@ import { cors } from "hono/cors";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { createMcpServer } from "./server.js";
 
-const PORT = Number(process.env.MCP_PORT) || 3100;
+const PORT = Number(process.env.MCP_PORT) || 3103;
 const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS?.split(",") || ["*"];
 
 const server = createMcpServer();

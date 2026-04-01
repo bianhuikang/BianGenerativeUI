@@ -18,6 +18,9 @@ import { MeetingTimePicker } from "@/components/generative-ui/meeting-time-picke
 import { ToolReasoning } from "@/components/tool-rendering";
 import { PlanCard } from "@/components/generative-ui/plan-card";
 
+/**
+ * GenerativeUI 示例组件
+ */
 export const useGenerativeUIExamples = () => {
   const { theme, setTheme } = useTheme();
 

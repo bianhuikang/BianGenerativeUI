@@ -15,6 +15,15 @@ export interface MeetingTimePickerProps {
   timeSlots?: TimeSlot[];
 }
 
+/**
+ * GenerativeUI 会议时间选择器组件
+ * @param status 会议状态
+ * @param respond 回复函数
+ * @param reasonForScheduling 会议原因
+ * @param meetingDuration 会议持续时间
+ * @param title 会议标题
+ * @param timeSlots 会议时间槽
+ */
 export function MeetingTimePicker({
   status,
   respond,

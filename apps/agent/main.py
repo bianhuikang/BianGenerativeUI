@@ -23,7 +23,12 @@ from src.plan import plan_visualization
 load_dotenv()
 
 agent = create_deep_agent(
-    model=ChatOpenAI(model=os.environ.get("LLM_MODEL", "gpt-5.4-2026-03-05")),
+    model=ChatOpenAI(
+        model=os.environ.get("LLM_MODEL", "deepseek-chat"),
+        openai_api_key=os.environ.get("OPENAI_API_KEY"),
+        openai_api_base=os.environ.get("OPENAI_API_BASE", "https://api.deepseek.com")
+    ),
+    
     tools=[query_data, plan_visualization, *todo_tools, generate_form],
     middleware=[CopilotKitMiddleware()],
     context_schema=AgentState,
@@ -109,5 +114,5 @@ warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
 if __name__ == "__main__":
     import uvicorn
 
-    port = int(os.getenv("PORT", "8123"))
+    port = int(os.getenv("PORT", "8125"))
     uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)

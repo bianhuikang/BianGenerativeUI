@@ -1,5 +1,8 @@
 import { useConfigureSuggestions } from "@copilotkit/react-core/v2";
 
+/**
+ * GenerativeUI 示例建议组件
+ */
 export const useExampleSuggestions = () => {
   useConfigureSuggestions({
     suggestions: [

@@ -26,6 +26,9 @@ export const WidgetRendererProps = z.object({
 type WidgetRendererProps = z.infer<typeof WidgetRendererProps>;
 
 // ─── Injected CSS: Theme Variables (Layer 3) ─────────────────────────
+/**
+ * GenerativeUI 小部件渲染器组件主题CSS
+ */
 export const THEME_CSS = `
 :root {
   --color-background-primary: #ffffff;
@@ -557,7 +560,11 @@ function useLoadingPhrase(active: boolean) {
 }
 
 // ─── React Component ─────────────────────────────────────────────────
-
+/**
+ * GenerativeUI 小部件渲染器组件
+ * @param title 小部件标题
+ * @param html 小部件HTML内容
+ */
 export function WidgetRenderer({ title, html }: WidgetRendererProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(0);

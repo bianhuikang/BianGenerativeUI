@@ -38,7 +38,7 @@ if (RATE_LIMIT_ENABLED) {
 // Normalize Render's fromService hostport (bare host:port) into a full URL
 const raw = process.env.LANGGRAPH_DEPLOYMENT_URL;
 const deploymentUrl = !raw
-  ? "http://localhost:8123"
+  ? "http://localhost:8125"
   : raw.startsWith("http")
     ? raw
     : `http://${raw}`;

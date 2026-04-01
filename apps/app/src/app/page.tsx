@@ -19,6 +19,8 @@ export default function HomePage() {
 
   const handleTryDemo = (demo: DemoItem) => {
     setDemoDrawerOpen(false);
+    console.log(`agent addMessage`, agent, { id: crypto.randomUUID(), content: demo.prompt, role: "user" });
+    
     agent.addMessage({ id: crypto.randomUUID(), content: demo.prompt, role: "user" });
     copilotkit.runAgent({ agent });
   };
